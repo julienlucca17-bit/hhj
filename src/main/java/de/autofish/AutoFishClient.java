@@ -48,6 +48,57 @@ public class AutoFishClient implements ClientModInitializer {
 	private static long biteAt = -1;
 	private static java.util.function.Consumer<Component> out = null;
 
+	// Direktes Auslesen der Bildschirmanzeige (Actionbar/Titel), egal wie der Server sie schickt
+	private static java.util.List<java.lang.reflect.Field> compFields = null;
+	private static java.lang.reflect.Field timeField = null;
+	private static String lastText = "";
+	private static int lastTime = 0;
+	private static long lastMiniTick = -1000;
+	private static final java.util.Map<String, String> lastByField = new java.util.HashMap<>();
+
+	private static void pollGui(Minecraft mc) {
+		if (mc.gui == null) return;
+		try {
+			if (compFields == null) {
+				compFields = new java.util.ArrayList<>();
+				for (java.lang.reflect.Field f : mc.gui.getClass().getDeclaredFields()) {
+					if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+					if (Component.class.isAssignableFrom(f.getType())) {
+						f.setAccessible(true);
+						compFields.add(f);
+					} else if (f.getType() == int.class && f.getName().toLowerCase().contains("overlay")) {
+						f.setAccessible(true);
+						timeField = f;
+					}
+				}
+			}
+			int time = timeField != null ? timeField.getInt(mc.gui) : 0;
+			for (java.lang.reflect.Field f : compFields) {
+				Object v = f.get(mc.gui);
+				if (!(v instanceof Component c)) continue;
+				String s = c.getString();
+				if (s.isEmpty()) continue;
+				String prev = lastByField.put(f.getName(), s);
+				if (debug && !s.equals(prev)) chat("[AutoFish] " + f.getName() + ": " + s);
+				String low = s.toLowerCase();
+				if (low.contains("da zieht was") || low.contains("sneak halten") || low.contains("loslassen")) {
+					lastMiniTick = age;
+				}
+				Matcher m = TENSION.matcher(s);
+				if (!m.find()) continue;
+				lastMiniTick = age;
+				boolean changed = !s.equals(lastText);
+				boolean refreshed = timeField != null ? time > lastTime : false;
+				tension = Integer.parseInt(m.group(1));
+				if (changed || refreshed || timeField == null) lastTensionTick = age;
+				lastText = s;
+			}
+			lastTime = time;
+		} catch (Throwable t) {
+			// still weitermachen, falls ein Feld nicht lesbar ist
+		}
+	}
+
 	@Override
 	public void onInitializeClient() {
 		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
@@ -111,18 +162,25 @@ public class AutoFishClient implements ClientModInitializer {
 
 	private static void tick(Minecraft mc) {
 		age++;
+		pollGui(mc);
 		LocalPlayer p = mc.player;
 		if (!enabled || p == null || mc.gameMode == null) {
 			if (holding) releaseSneak();
 			return;
 		}
 
-		boolean inMinigame = tension >= 0 && age - lastTensionTick <= 20;
+		boolean tensionFresh = tension >= 0 && age - lastTensionTick <= 20;
+		boolean miniSeen = age - lastMiniTick <= 40;
 
-		if (inMinigame) {
+		if (tensionFresh || miniSeen) {
 			biteAt = -1;
-			if (tension >= high) holding = false;
-			else if (tension <= low) holding = true;
+			if (tensionFresh) {
+				if (tension >= high) holding = false;
+				else if (tension <= low) holding = true;
+			} else {
+				// Minispiel erkannt, aber keine Spannung lesbar: abwechselnd ziehen und nachlassen
+				holding = (age / 10) % 2 == 0;
+			}
 			mc.options.keyShift.setDown(holding);
 			return;
 		}
