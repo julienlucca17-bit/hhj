@@ -2,7 +2,7 @@ package de.autofish;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -64,42 +64,42 @@ public class AutoFishClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(AutoFishClient::tick);
 
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
-			dispatcher.register(ClientCommandManager.literal("autofish")
-				.then(ClientCommandManager.literal("on").executes(c -> {
+			dispatcher.register(ClientCommands.literal("autofish")
+				.then(ClientCommands.literal("on").executes(c -> {
 					enabled = true;
 					c.getSource().sendFeedback(Component.literal("AutoFish AN"));
 					return 1;
 				}))
-				.then(ClientCommandManager.literal("off").executes(c -> {
+				.then(ClientCommands.literal("off").executes(c -> {
 					enabled = false;
 					releaseSneak();
 					c.getSource().sendFeedback(Component.literal("AutoFish AUS"));
 					return 1;
 				}))
-				.then(ClientCommandManager.literal("debug").executes(c -> {
+				.then(ClientCommands.literal("debug").executes(c -> {
 					debug = !debug;
 					c.getSource().sendFeedback(Component.literal("Debug: " + debug));
 					return 1;
 				}))
-				.then(ClientCommandManager.literal("low")
-					.then(ClientCommandManager.argument("wert", IntegerArgumentType.integer(0, 100)).executes(c -> {
+				.then(ClientCommands.literal("low")
+					.then(ClientCommands.argument("wert", IntegerArgumentType.integer(0, 100)).executes(c -> {
 						low = IntegerArgumentType.getInteger(c, "wert");
 						c.getSource().sendFeedback(Component.literal("low = " + low));
 						return 1;
 					})))
-				.then(ClientCommandManager.literal("high")
-					.then(ClientCommandManager.argument("wert", IntegerArgumentType.integer(0, 100)).executes(c -> {
+				.then(ClientCommands.literal("high")
+					.then(ClientCommands.argument("wert", IntegerArgumentType.integer(0, 100)).executes(c -> {
 						high = IntegerArgumentType.getInteger(c, "wert");
 						c.getSource().sendFeedback(Component.literal("high = " + high));
 						return 1;
 					})))
-				.then(ClientCommandManager.literal("delay")
-					.then(ClientCommandManager.argument("ticks", IntegerArgumentType.integer(0, 100)).executes(c -> {
+				.then(ClientCommands.literal("delay")
+					.then(ClientCommands.argument("ticks", IntegerArgumentType.integer(0, 100)).executes(c -> {
 						checkDelay = IntegerArgumentType.getInteger(c, "ticks");
 						c.getSource().sendFeedback(Component.literal("delay = " + checkDelay + " Ticks"));
 						return 1;
 					})))
-				.then(ClientCommandManager.literal("status").executes(c -> {
+				.then(ClientCommands.literal("status").executes(c -> {
 					c.getSource().sendFeedback(Component.literal(
 						"an=" + enabled + " low=" + low + " high=" + high + " delay=" + checkDelay + " spannung=" + tension));
 					return 1;
@@ -173,6 +173,6 @@ public class AutoFishClient implements ClientModInitializer {
 
 	private static void chat(String s) {
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.player != null) mc.player.displayClientMessage(Component.literal(s), false);
+		if (mc.gui != null) mc.gui.getChat().addMessage(Component.literal(s));
 	}
 }
