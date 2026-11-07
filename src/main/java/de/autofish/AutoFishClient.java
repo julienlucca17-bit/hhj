@@ -46,6 +46,7 @@ public class AutoFishClient implements ClientModInitializer {
 	private static int cooldown = 0;
 	private static int hookAge = 0;
 	private static long biteAt = -1;
+	private static java.util.function.Consumer<Component> out = null;
 
 	@Override
 	public void onInitializeClient() {
@@ -78,6 +79,7 @@ public class AutoFishClient implements ClientModInitializer {
 				}))
 				.then(ClientCommands.literal("debug").executes(c -> {
 					debug = !debug;
+					out = msg -> c.getSource().sendFeedback(msg);
 					c.getSource().sendFeedback(Component.literal("Debug: " + debug));
 					return 1;
 				}))
@@ -172,7 +174,6 @@ public class AutoFishClient implements ClientModInitializer {
 	}
 
 	private static void chat(String s) {
-		Minecraft mc = Minecraft.getInstance();
-		if (mc.gui != null) mc.gui.getChat().addMessage(Component.literal(s));
+		if (out != null) out.accept(Component.literal(s));
 	}
 }
