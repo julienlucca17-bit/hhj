@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  */
 public class AutoFishClient implements ClientModInitializer {
 
-	private static final Pattern TENSION = Pattern.compile("(\\d{1,3})\\s*%\\s*Spannung");
+	private static final Pattern TENSION = Pattern.compile("(\\d{1,3})\\s*%.{0,10}?Spannung", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
 
 	// Einstellbar per Befehl
 	static boolean enabled = false;
@@ -55,6 +55,21 @@ public class AutoFishClient implements ClientModInitializer {
 	private static int lastTime = 0;
 	private static long lastMiniTick = -1000;
 	private static int forceHold = 0;
+
+	// Entfernt unsichtbare Sonderzeichen (Server bauen Anzeigen oft damit)
+	private static String clean(String s) {
+		return s.replaceAll("[\\p{Co}\\p{Cf}\\p{Cc}]", "").replaceAll("\\s+", " ");
+	}
+
+	// Macht Sonderzeichen sichtbar, z.B. , damit man sie im Chat lesen kann
+	private static String esc(String s) {
+		StringBuilder sb = new StringBuilder();
+		for (char ch : s.toCharArray()) {
+			if (ch < 32 || ch > 126) sb.append(String.format("\\u%04X", (int) ch));
+			else sb.append(ch);
+		}
+		return sb.toString();
+	}
 	private static final java.util.Map<String, String> lastByField = new java.util.HashMap<>();
 
 	private static void pollGui(Minecraft mc) {
@@ -77,10 +92,11 @@ public class AutoFishClient implements ClientModInitializer {
 			for (java.lang.reflect.Field f : compFields) {
 				Object v = f.get(mc.gui);
 				if (!(v instanceof Component c)) continue;
-				String s = c.getString();
+				String raw = c.getString();
+				String s = clean(raw);
 				if (s.isEmpty()) continue;
 				String prev = lastByField.put(f.getName(), s);
-				if (debug && !s.equals(prev)) chat("[AutoFish] " + f.getName() + ": " + s);
+				if (debug && !s.equals(prev)) chat("[AutoFish] " + f.getName() + ": " + esc(raw));
 				String low = s.toLowerCase();
 				if (low.contains("da zieht was") || low.contains("sneak halten") || low.contains("loslassen")) {
 					lastMiniTick = age;
@@ -103,9 +119,14 @@ public class AutoFishClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
-			String text = message.getString();
+			String raw = message.getString();
+			String text = clean(raw);
+			// Server meldet "warte bis der Fang abgeschlossen ist": Minispiel laeuft -> ca. 5 Sekunden Finger weg von der Angel
+			if (text.toLowerCase().contains("abgeschlossen")) {
+				lastMiniTick = age + 60;
+			}
 			if (debug && overlay) {
-				chat("[AutoFish] Actionbar: " + text);
+				chat("[AutoFish] Actionbar: " + esc(raw));
 			}
 			Matcher m = TENSION.matcher(text);
 			if (m.find()) {
