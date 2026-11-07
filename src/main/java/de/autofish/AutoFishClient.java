@@ -54,6 +54,7 @@ public class AutoFishClient implements ClientModInitializer {
 	private static String lastText = "";
 	private static int lastTime = 0;
 	private static long lastMiniTick = -1000;
+	private static int forceHold = 0;
 	private static final java.util.Map<String, String> lastByField = new java.util.HashMap<>();
 
 	private static void pollGui(Minecraft mc) {
@@ -152,6 +153,18 @@ public class AutoFishClient implements ClientModInitializer {
 						c.getSource().sendFeedback(Component.literal("delay = " + checkDelay + " Ticks"));
 						return 1;
 					})))
+				.then(ClientCommands.literal("shift").executes(c -> {
+					forceHold = 60;
+					c.getSource().sendFeedback(Component.literal("Halte Shift fuer 3 Sekunden"));
+					return 1;
+				}))
+				.then(ClientCommands.literal("fake")
+					.then(ClientCommands.argument("wert", IntegerArgumentType.integer(0, 100)).executes(c -> {
+						tension = IntegerArgumentType.getInteger(c, "wert");
+						lastTensionTick = age + 40; // gilt ca. 3 Sekunden als frisch
+						c.getSource().sendFeedback(Component.literal("Vorgetaeuschte Spannung: " + tension + "% (AutoFish muss AN sein)"));
+						return 1;
+					})))
 				.then(ClientCommands.literal("status").executes(c -> {
 					c.getSource().sendFeedback(Component.literal(
 						"an=" + enabled + " low=" + low + " high=" + high + " delay=" + checkDelay + " spannung=" + tension));
@@ -164,6 +177,11 @@ public class AutoFishClient implements ClientModInitializer {
 		age++;
 		pollGui(mc);
 		LocalPlayer p = mc.player;
+		if (forceHold > 0) {
+			forceHold--;
+			mc.options.keyShift.setDown(forceHold > 0);
+			return;
+		}
 		if (!enabled || p == null || mc.gameMode == null) {
 			if (holding) releaseSneak();
 			return;
